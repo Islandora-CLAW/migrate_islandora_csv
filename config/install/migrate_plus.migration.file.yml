@@ -2,34 +2,35 @@
 dependencies:
   enforced:
     module:
-      - migrate_islandora_csv 
+      - migrate_islandora_csv
 
 id: file
-label: Import Image Files
-migration_group: migrate_islandora_csv 
+label: Import Files
+migration_group: migrate_islandora_csv
+migration_tags:
+  - CSV
+migration_dependencies:
+  required:
+    - node
 
 source:
   plugin: csv
-  path: 'modules/contrib/migrate_islandora_csv/data/migration.csv'
+  path: modules/contrib/migrate_islandora_csv/data/migration.csv
   delimiter: ','
 
-  # 1 means you have a header row, 0 means you don't
-  header_row_count: 1 
+  # Row to treat as the header row; 0 for no headers, 1 for top row, other rows should work too.
+  header_row_count: 1
 
   # Each migration needs a unique key per row in the csv.  Here we're using the file path.
-  keys: 
-    - file 
+  keys:
+    - file
 
   # You can't enter string literals into a process plugin, but you can give it a constant as a 'source'.
   constants:
     # Islandora uses flysystem and stream wrappers to work with files.  What we're really saying here is
     # to put these files in Fedora in a 'csv_migration' folder.  It doesn't matter if the directory
     # doesn't exist yet, it will get created for you automatically.
-    destination_dir: 'fedora://csv_migration' 
-
-    # Hard-code mime type to jpeg.  This could easily come from a column in the CSV if you have
-    # different mimetypes.
-    mime: image/jpeg
+    destination_dir: 'fedora://csv_migration'
 
     # Everything gets created as admin
     uid: 1
@@ -37,10 +38,9 @@ source:
 process:
 
   # Set these properties from constants.
-  filemime: constants/mimetype
   uid: constants/uid
 
-  # Hack the file name out of the full path provided in the 'file' column.
+  # Extract filename from the filepath in 'file' column.
   filename:
     -
       plugin: callback
@@ -51,7 +51,7 @@ process:
       index:
         - basename
 
-  # Construct the destination URI using the file name.
+  # Construct destination URI using the file name.
   destination:
     plugin: concat
     delimiter: /
@@ -59,17 +59,18 @@ process:
       - constants/destination_dir
       - '@filename'
 
-  ##
-  # Here's where we copy the file over and set the uri of the file entity.
-  ##
+  # Copy file to Drupal destination.
   uri:
     plugin: file_copy
     source:
       - file # The source column in the CSV
-      - '@destination' # The destination entry from above  
+      - '@destination' # The destination entry from above
 
+  # Process plugin to wrap Drupal mimetype guessing service.
+  filemime:
+    -
+      source: file
+      plugin: file_mimetype
 
 destination:
-  # These are Drupal 'image' entities we're making, not just plain 'file' entities.
   plugin: 'entity:file'
-  type: image
